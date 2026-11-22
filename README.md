@@ -1,0 +1,81 @@
+# Seaworthy
+
+Pre-launch security checks for AI-built apps.
+
+Seaworthy runs fast, public, deterministic checks against a URL and returns evidence-backed findings, a 0-100 score, coverage, and a shareable report. It is designed for vibe-coded and AI-assisted apps that need a clear launch-readiness signal before charging money.
+
+## V1 (current)
+
+- **Fast Scan**: public URL scan with 30 high-impact deterministic checks
+- **Evidence-backed findings**: severity, verdict, evidence, and plain-English fix
+- **Report**: shareable report page and PDF export
+- **Waitlist**: in-app capture for Full Report and Monitor
+- **Legal baseline**: draft Terms/Privacy pages, best-effort/not-a-pentest messaging, Cloudflare skill attribution
+
+## Docs
+
+- `docs/Seaworthy-Plan-v1.pdf` - current plan (v1.1 content, canonical)
+- `docs/Seaworthy-Plan-v1.1.pdf` - dated copy of current plan
+- `docs/Seaworthy-Versions-Roadmap.md` - full V1→V4 roadmap
+
+## Stack
+
+- Next.js 16 (App Router)
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Zod
+- PDFKit
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Scripts
+
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run start
+```
+
+## Project structure
+
+- `src/app/` - pages and API routes (`/`, `/report/[id]`, `/terms`, `/privacy`, `/api/*`)
+- `src/components/` - UI components
+- `src/lib/checks.ts` - deterministic V1 checks
+- `src/lib/scan.ts` - scan orchestration, scoring, coverage, SSRF guard
+- `src/lib/store.ts` - local `.data` persistence for scans and waitlist
+- `docs/` - plan and version roadmap
+
+## V1 release checklist
+
+- [x] Fast scan, report, PDF, waitlist flows
+- [x] Premium responsive UI, reduced-motion/transparency fallbacks
+- [x] Terms/Privacy draft pages and legal disclaimers
+- [x] Cloudflare `security-audit-skill` MIT attribution/no endorsement
+- [x] Lint/build pass
+- [ ] Final browser QA (390/768/1024/1440, keyboard/focus, scan/report/PDF smoke)
+- [ ] Production deploy + domain/env/monitoring
+- [ ] Replace `.data` local storage with production DB before public multi-user use
+- [ ] Final legal review for Terms/Privacy/support/contact
+
+## Important notes
+
+- Fast Scan is **best-effort automated review**. It is **not a penetration test, certification, or guarantee**.
+- Public URLs only. Private/internal hosts are blocked by the scan guard.
+- V1 stores scan and waitlist data locally in `.data/` (gitignored). Production should use a database.
+- Deep/authenticated/runtime audits require separate sandboxed execution and are not part of V1 fast scan.
+
+## Attribution
+
+Seaworthy's security-audit concepts are informed in part by Cloudflare's MIT-licensed [`security-audit-skill`](https://github.com/cloudflare/security-audit-skill).
+
+Copyright (c) Cloudflare, Inc.  
+Used with attribution. Cloudflare does not endorse Seaworthy. See the upstream repository for license terms.
