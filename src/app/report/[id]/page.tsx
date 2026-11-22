@@ -55,7 +55,7 @@ async function ReportBody({ params }: { params: Promise<{ id: string }> }) {
       <footer className="mt-12 border-t border-[rgba(236,241,236,0.08)] pt-8 text-xs text-[var(--muted)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-[var(--text)]"><span className="grid h-6 w-6 place-items-center rounded-md bg-[var(--accent)] text-[#141814]"><SeaworthyMark className="h-3.5 w-3.5" /></span><span className="font-medium">Seaworthy</span></div>
-          <div className="flex gap-4"><Link href="/terms" className="hover:text-[var(--text)]">Terms</Link><Link href="/privacy" className="hover:text-[var(--text)]">Privacy</Link></div>
+          <div className="flex gap-4"><Link href="/security" className="hover:text-[var(--text)]">Security</Link><Link href="/terms" className="hover:text-[var(--text)]">Terms</Link><Link href="/privacy" className="hover:text-[var(--text)]">Privacy</Link></div>
         </div>
       </footer>
     </main>

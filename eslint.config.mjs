@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "public/taste/**",
     ".agents/**",
+    // Local QA artifacts (screenshots, throwaway Chrome profile).
+    "qa/**",
+    // Local file-store fallback for development.
+    ".data/**",
   ]),
 ]);
 

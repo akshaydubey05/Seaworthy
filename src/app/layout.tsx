@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Mono, Instrument_Sans } from "next/font/google";
+import { site } from "@/lib/site";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -15,12 +16,18 @@ const dmMono = DM_Mono({
   display: "swap",
 });
 
+const description =
+  "Seaworthy scans AI-built apps for exposed secrets, missing auth, unsafe Supabase rules, and other launch risks before you charge money.";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://seaworthy.dev"),
+  metadataBase: new URL(site.url),
   title: "Seaworthy — Security checks for AI-built apps",
-  description:
-    "Seaworthy scans AI-built apps for exposed secrets, missing auth, unsafe Supabase rules, and other launch risks before you charge money.",
+  description,
+  applicationName: site.name,
+  alternates: { canonical: "/" },
   openGraph: {
+    url: site.url,
+    siteName: site.name,
     title: "Seaworthy — Security checks for AI-built apps",
     description:
       "A pre-launch security check for AI-built apps. Find critical issues, get evidence, and fix them before customers do.",
@@ -31,6 +38,10 @@ export const metadata: Metadata = {
     title: "Seaworthy — Security checks for AI-built apps",
     description:
       "A pre-launch security check for AI-built apps. Find critical issues, get evidence, and fix them before customers do.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

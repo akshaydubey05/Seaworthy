@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight, BadgeCheck, FileCheck2, LockKeyhole, Radar, ShieldCheck } from "lucide-react";
 import { SeaworthyMark } from "@/components/brand";
 import { RevealInit } from "@/components/reveal";
@@ -301,8 +302,9 @@ export default function Home() {
           </div>
           <div className="flex flex-col gap-3 lg:items-end">
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
-              <a className="hover:text-[var(--text)] transition-colors" href="/terms">Terms</a>
-              <a className="hover:text-[var(--text)] transition-colors" href="/privacy">Privacy</a>
+              <Link className="hover:text-[var(--text)] transition-colors" href="/security">Security</Link>
+              <Link className="hover:text-[var(--text)] transition-colors" href="/terms">Terms</Link>
+              <Link className="hover:text-[var(--text)] transition-colors" href="/privacy">Privacy</Link>
               <a className="hover:text-[var(--text)] transition-colors" href="https://github.com/akshaydubey05/Seaworthy" target="_blank" rel="noreferrer">GitHub</a>
             </div>
             <div className="flex max-w-[28rem] items-start gap-2 text-xs lg:text-right">
