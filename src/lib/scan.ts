@@ -357,7 +357,7 @@ function buildNotes(url: URL, context: ScanContextInfo, findings: Finding[]): st
     notes.push("The HTML response was truncated at 300 KB. Signals that appear later in the page may be missed.");
   }
   if (context.sensitive) {
-    notes.push("This page appears to have an interactive or sensitive surface (login, payment, or forms). Validate auth and session handling manually.");
+    notes.push("This page appears to have a login or payment surface. Validate auth, session handling, and webhook verification manually.");
   }
   if (findings.length === 0) {
     notes.push("A clean result covers one public page only. Authenticated routes, APIs, and runtime behavior were not tested.");

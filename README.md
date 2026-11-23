@@ -23,6 +23,7 @@ Seaworthy runs fast, public, deterministic checks against a URL and returns evid
 - `docs/Seaworthy-Versions-Roadmap.md` - full V1→V4 roadmap
 - `docs/METHODOLOGY.md` - what a finding means, scoring, and false-positive controls
 - `docs/QA-V1.md` - QA record
+- `SECURITY.md` - vulnerability reporting policy
 - `DEPLOYMENT.md` - production deploy checklist
 
 ## Stack

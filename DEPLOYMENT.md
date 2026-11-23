@@ -51,6 +51,7 @@ Without Upstash, rate limits are per-instance in memory, which is weak on server
 ## 5. Post-deploy verification
 
 - [ ] `GET /api/health` returns `200` with `storage.mode = "postgres"`.
+- [ ] `GET /.well-known/security.txt` returns the contact and policy URLs.
 - [ ] Run a fast scan against a safe public URL (e.g. `https://example.com`).
 - [ ] Open the report page and download the PDF.
 - [ ] Submit the waitlist form and confirm the row in `waitlist`.

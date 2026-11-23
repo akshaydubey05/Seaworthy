@@ -178,3 +178,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     </Suspense>
   );
 }
+
+export const metadata = {
+  robots: { index: false, follow: false },
+};
