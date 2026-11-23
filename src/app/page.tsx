@@ -217,7 +217,7 @@ export default function Home() {
                   name: "Fast Scan",
                   price: "$0",
                   desc: "For a quick pre-launch check.",
-                  items: ["Public URL scan", "Score and coverage", "Top findings", "No login required"],
+                  items: ["Public URL scan", "Score and coverage", "30 deterministic checks", "Shareable report + PDF", "No login required"],
                   cta: "Run fast scan",
                   href: "#scan",
                   primary: false,
@@ -226,7 +226,7 @@ export default function Home() {
                   name: "Full Report",
                   price: "$19",
                   desc: "For founders about to charge money.",
-                  items: ["Full findings and evidence", "Fix prompts", "Shareable report", "PDF export"],
+                  items: ["Deeper checks and evidence", "Fix prompts", "Trend history", "Launch checklist export"],
                   cta: "Join waitlist",
                   href: "#waitlist",
                   primary: true,
@@ -257,6 +257,10 @@ export default function Home() {
                 </article>
               ))}
             </div>
+            <p className="mt-6 max-w-[44rem] text-xs leading-6 text-[var(--muted)]">
+              Full Report and Monitor are planned. Prices are indicative and will be confirmed at launch. Fast Scan,
+              including the shareable report and PDF, is free today.
+            </p>
           </div>
         </section>
 
@@ -266,7 +270,7 @@ export default function Home() {
               <p className="eyebrow mb-4">Waitlist</p>
               <h2 className="h2 mb-5 text-[clamp(2rem,4.4vw,3.2rem)]">Get the full report and monitor when they launch.</h2>
               <p className="mb-7 max-w-[36rem] text-[15px] leading-7 text-[var(--muted)]">
-                Paid reports, PDF export, and monitoring are in progress. Join the list and we’ll use it to prioritize the next V1 features.
+                Paid full reports and monitoring are in progress. Join the list and we’ll use it to prioritize what ships next.
               </p>
               <WaitlistForm />
               <p className="mt-3 text-xs text-[var(--muted)]">No spam. We’ll only email when Full Report or Monitor is ready.</p>
