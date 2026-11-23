@@ -9,7 +9,7 @@ import { WaitlistForm } from "@/components/waitlist-form";
 const stats = [
   { value: "60s", label: "Fast public scan", detail: "A quick pass for obvious launch blockers." },
   { value: "30", label: "High-impact checks", detail: "Focused on the mistakes AI-built apps ship most." },
-  { value: "0-100", label: "Seaworthy score", detail: "A simple score backed by evidence and coverage." },
+  { value: "0-100", label: "Exposure score", detail: "Weighted toward confirmed exposures. Hardening gaps count little." },
 ];
 
 const steps = [
@@ -153,13 +153,13 @@ export default function Home() {
               <p className="eyebrow mb-4">Verified report</p>
               <h2 className="h2 mb-5 text-[clamp(2rem,4.5vw,3.25rem)]">Proof, not a pile of warnings.</h2>
               <p className="mb-7 max-w-[34rem] text-[15px] leading-7 text-[var(--muted)]">
-                Seaworthy separates confirmed findings from items that need validation. You can see what was checked, what evidence was found, and what still requires deeper access.
+                Seaworthy separates confirmed exposures from signals that need validation and from low-priority hardening notes. You can see what was checked, what evidence was found, and what still requires deeper access.
               </p>
               <div className="space-y-4">
                 {[
-                  ["Confirmed", "Evidence-backed findings ready to fix now.", "text-[var(--accent)]"],
-                  ["Needs validation", "Signals that require auth, repo, or runtime access.", "text-[var(--warn)]"],
-                  ["Rejected", "Noisy candidates removed before they reach your report.", "text-[var(--muted)]"],
+                  ["Exposure", "A credential, leak, or misconfiguration that looks exploitable now.", "text-[var(--accent)]"],
+                  ["Needs validation", "A pattern worth checking with auth, repo, or runtime access.", "text-[var(--warn)]"],
+                  ["Hardening", "Best-practice gaps like missing headers. Useful, not proof of a vulnerability.", "text-[var(--muted)]"],
                 ].map(([label, desc, tone]) => (
                   <div key={label} className="border-t border-[rgba(236,241,236,0.1)] pt-4">
                     <div className={`font-mono text-xs tracking-[0.03em] ${tone}`}>{label}</div>
@@ -180,7 +180,7 @@ export default function Home() {
                   <span className="pill"><span className="dot" />Coverage 87%</span>
                 </div>
                 <div className="mb-5 grid gap-3 sm:grid-cols-3">
-                  {[["3", "Confirmed"], ["2", "Needs validation"], ["11", "Rejected"]].map(([n, l]) => (
+                  {[["3", "Exposures"], ["2", "Needs validation"], ["4", "Hardening"]].map(([n, l]) => (
                     <div key={l} className="card-soft p-4">
                       <div className="text-[2rem] font-medium leading-none tracking-[-0.04em]">{n}</div>
                       <div className="mt-2 text-xs text-[var(--muted)]">{l}</div>
@@ -190,7 +190,8 @@ export default function Home() {
                 <div className="rounded-2xl border border-[rgba(255,150,150,0.18)] bg-[rgba(255,150,150,0.065)] p-5 backdrop-blur-sm">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <span className="sev sev-critical">Critical</span>
-                    <span className="kbd">Confirmed</span>
+                    <span className="tag tag-exposure">Exposure</span>
+                    <span className="kbd">observed</span>
                     <span className="font-mono text-[11px] text-[var(--muted)]">SW-001</span>
                   </div>
                   <div className="text-[15px] font-medium">Supabase service role key exposed in client bundle</div>
@@ -201,6 +202,26 @@ export default function Home() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="honesty" className="section section-border">
+          <div className="container grid gap-8 lg:grid-cols-12">
+            <div className="lg:col-span-5" data-reveal>
+              <p className="eyebrow mb-4">Honest by design</p>
+              <h2 className="h2 text-[clamp(2rem,4.5vw,3.25rem)]">Why big sites still get notes.</h2>
+            </div>
+            <div className="space-y-4 text-[15px] leading-7 text-[var(--muted)] lg:col-span-7" data-reveal style={{ ["--reveal-delay" as string]: "80ms" }}>
+              <p>
+                A scan sees one public response. Large sites terminate at edge networks, enforce policy per route, and often roll out CSP in report-only mode first. That is why a header can be absent on the homepage while the application itself is well protected.
+              </p>
+              <p>
+                So Seaworthy labels header gaps as <strong className="text-[var(--text)]">hardening</strong>, not vulnerabilities, and weights them lightly. Exposure findings — leaked keys, unsafe data access, weak session cookies — are what move the score.
+              </p>
+              <p>
+                If a result surprises you, read the evidence and the scan limitations. A clean score is not a guarantee, and a hardening note is not an incident.
+              </p>
             </div>
           </div>
         </section>

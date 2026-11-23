@@ -40,6 +40,24 @@ Screenshots are written to `qa/` (gitignored): `home-390.png`, `home-768.png`, `
 - Reduced-motion and transparency fallbacks are defined in `globals.css` (`prefers-reduced-motion`, `prefers-reduced-transparency`).
 - `npm run lint`, `npm run typecheck`, and `npm run build` pass.
 
+## Credibility regression (`npm run qa:credibility`)
+
+Real, well-secured sites must not be presented as vulnerable. Result: **CREDIBILITY CHECK PASS**
+
+| Site | Exposure score | Hardening | Findings |
+|---|---|---|---|
+| google.com | 98 | 85 | 5 low hardening notes (report-only CSP, HSTS, XCTO, Referrer-Policy, Permissions-Policy) |
+| cloudflare.com | 100 | 100 | none |
+| example.com | 97 | 79 | 7 low hardening notes |
+
+Regression assertions:
+
+- No finding on Google or Cloudflare is typed `exposure`.
+- No finding on Google or Cloudflare is rated `medium` or higher.
+- `http://schema.org` markup is not reported as mixed content.
+- Report-only CSP is a low hardening note, not a "missing CSP" vulnerability.
+- A marketing mention of Stripe is not a finding; webhook checks are manual only.
+
 ## Not covered here (requires credentials / external accounts)
 
 - Real production deploy, custom domain, and TLS.

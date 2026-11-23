@@ -22,11 +22,27 @@ function getPool(): Pool {
   return globalForDb.__seaworthyPool;
 }
 
+type ScanMeta = {
+  finalUrl?: string;
+  hardeningScore?: number;
+  manualChecks?: ScanResult["manualChecks"];
+  notes?: string[];
+  context?: ScanResult["context"];
+};
+
 export async function saveScanRecord(result: ScanResult) {
+  const meta: ScanMeta = {
+    finalUrl: result.finalUrl,
+    hardeningScore: result.hardeningScore,
+    manualChecks: result.manualChecks,
+    notes: result.notes,
+    context: result.context,
+  };
+
   await getPool().query(
     `insert into scans
-      (receipt_id, url, score, coverage, checks_run, checks_total, duration_ms, findings, summary, checks, counts)
-     values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb,$11::jsonb)
+      (receipt_id, url, score, coverage, checks_run, checks_total, duration_ms, findings, summary, checks, counts, meta)
+     values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb,$11::jsonb,$12::jsonb)
      on conflict (receipt_id) do nothing`,
     [
       result.receiptId,
@@ -40,6 +56,7 @@ export async function saveScanRecord(result: ScanResult) {
       result.summary,
       JSON.stringify(result.checks),
       JSON.stringify(result.counts),
+      JSON.stringify(meta),
     ],
   );
 }
@@ -56,26 +73,43 @@ type ScanRow = {
   summary: string;
   checks: ScanResult["checks"];
   counts: ScanResult["counts"];
+  meta: ScanMeta | null;
   created_at: Date;
 };
 
 export async function getScanRecord(id: string): Promise<(ScanResult & { savedAt?: string }) | null> {
   const { rows } = await getPool().query<ScanRow>(
-    `select receipt_id, url, score, coverage, checks_run, checks_total, duration_ms, findings, summary, checks, counts, created_at
+    `select receipt_id, url, score, coverage, checks_run, checks_total, duration_ms, findings, summary, checks, counts, meta, created_at
      from scans where receipt_id = $1 limit 1`,
     [id],
   );
   const row = rows[0];
   if (!row) return null;
+  const meta = row.meta || {};
   return {
     receiptId: row.receipt_id,
     url: row.url,
+    finalUrl: meta.finalUrl || row.url,
     score: row.score,
+    hardeningScore: meta.hardeningScore ?? row.score,
     coverage: row.coverage,
     checksRun: row.checks_run,
     checksTotal: row.checks_total,
     durationMs: row.duration_ms,
     findings: row.findings,
+    manualChecks: meta.manualChecks || [],
+    notes: meta.notes || [],
+    context: meta.context || {
+      finalUrl: meta.finalUrl || row.url,
+      status: 200,
+      contentType: "text/html",
+      bodyScanned: true,
+      truncated: false,
+      hasForms: false,
+      hasPasswordForm: false,
+      hasPaymentScript: false,
+      sensitive: false,
+    },
     summary: row.summary,
     checks: row.checks,
     counts: row.counts,

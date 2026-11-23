@@ -40,10 +40,11 @@
 - [x] Lint and production build pass
 - [x] Premium UI/accessibility baseline
 - [x] README/attribution/legal copy baseline
-- [ ] Final browser QA: 390/768/1024/1440, keyboard/focus, scan flow, report/PDF flow
-- [ ] Deploy to production domain with env/monitoring
-- [ ] Replace `.data` local store with production DB before public multi-user use
-- [ ] Confirm legal pages (Terms/Privacy) and contact/support details
+- [x] Final browser QA: 390/768/1024/1440, keyboard/focus, scan flow, report/PDF flow (`docs/QA-V1.md`)
+- [x] Credibility pass: exposures vs signals vs hardening, false-positive controls, `npm run qa:credibility`
+- [ ] Deploy to production domain with env/monitoring (needs Vercel/registrar credentials)
+- [x] Replace `.data` local store with production DB adapter + migration (live DB verification pending `DATABASE_URL`)
+- [x] Legal pages, support/contact, and responsible disclosure (attorney review pending)
 
 ### Explicitly not in V1
 - No auth/accounts, billing, scan history, or team features.

@@ -11,6 +11,26 @@ const sevClass: Record<ScanSeverity, string> = {
   low: "sev sev-low",
 };
 
+const typeClass: Record<string, string> = {
+  exposure: "tag tag-exposure",
+  signal: "tag tag-signal",
+  hardening: "tag tag-hardening",
+};
+
+const typeLabel: Record<string, string> = {
+  exposure: "Exposure",
+  signal: "Needs validation",
+  hardening: "Hardening",
+};
+
+const verdictLabel: Record<string, string> = {
+  confirmed: "observed",
+  needs_validation: "needs validation",
+  rejected: "rejected",
+};
+
+const typeRank: Record<string, number> = { exposure: 0, signal: 1, hardening: 2 };
+
 export function ScanPanel() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -69,10 +89,12 @@ export function ScanPanel() {
             <div className="score" style={{ ["--value" as string]: result.score }}><span>{result.score}</span></div>
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
+                <span className="kbd">Exposure score</span>
                 <span className="kbd">{result.receiptId}</span>
                 <span className="kbd">{result.coverage}% coverage</span>
                 <span className="kbd">{result.checksRun}/{result.checksTotal} checks</span>
                 <span className="kbd">{Math.max(1, Math.round(result.durationMs / 1000))}s</span>
+                {typeof result.hardeningScore === "number" && <span className="kbd">Hardening {result.hardeningScore}/100</span>}
               </div>
               <p className="text-[15px] leading-7 text-[color:var(--text)]/88">{result.summary}</p>
               <p className="mt-1 text-[13px] text-[var(--muted)] break-all">{result.url}</p>
@@ -84,7 +106,7 @@ export function ScanPanel() {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            {[["Confirmed", result.counts.confirmed, "text-[var(--accent)]"], ["Needs validation", result.counts.needs_validation, "text-[var(--warn)]"], ["Checks passed", result.checks.filter(c=>c.status==="pass").length, "text-[var(--muted)]"]].map(([l,v,c]) => (
+            {[["Exposures", result.counts.exposures ?? 0, "text-[#ff9696]"], ["Needs validation", result.counts.needs_validation, "text-[var(--warn)]"], ["Hardening", result.counts.hardening ?? 0, "text-[var(--accent)]"]].map(([l,v,c]) => (
               <div key={String(l)} className="card-soft p-3 text-center">
                 <div className={`text-xl font-medium tracking-[-0.03em] ${c}`}>{v}</div>
                 <div className="text-[11px] text-[var(--muted)] mt-1">{l}</div>
@@ -93,11 +115,12 @@ export function ScanPanel() {
           </div>
 
           <div className="grid gap-3">
-            {result.findings.length ? result.findings.map((f) => (
+            {result.findings.length ? [...result.findings].sort((a, b) => (typeRank[a.type || "signal"] ?? 1) - (typeRank[b.type || "signal"] ?? 1)).map((f) => (
               <article key={f.id} className="card-soft p-4 sm:p-5">
                 <div className="flex flex-wrap items-center gap-2 mb-2.5">
                   <span className={sevClass[f.severity]}>{f.severity}</span>
-                  <span className="kbd">{f.verdict.replace("_", " ")}</span>
+                  <span className={typeClass[f.type || "signal"]}>{typeLabel[f.type || "signal"]}</span>
+                  <span className="kbd">{verdictLabel[f.verdict] || f.verdict}</span>
                   <span className="text-[11px] font-mono text-[var(--muted)]">{f.id}</span>
                 </div>
                 <h3 className="text-[15px] font-medium leading-6 mb-2">{f.title}</h3>
@@ -105,7 +128,7 @@ export function ScanPanel() {
                 <p className="mt-1 text-[13px] leading-6 text-[var(--muted)]"><span className="text-[color:var(--text)]/72">Fix:</span> {f.fix}</p>
               </article>
             )) : (
-              <div className="card-soft p-4 text-[14px] leading-6 text-[var(--muted)]">No high-signal public findings in this fast scan. A deep audit is still recommended before launch.</div>
+              <div className="card-soft p-4 text-[14px] leading-6 text-[var(--muted)]">No exposure signals or hardening gaps were observed on this public page. This is not a guarantee that the app is secure.</div>
             )}
           </div>
 

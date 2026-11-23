@@ -13,8 +13,12 @@ create table if not exists scans (
   summary      text not null,
   checks       jsonb not null default '[]'::jsonb,
   counts       jsonb not null default '{}'::jsonb,
+  meta         jsonb not null default '{}'::jsonb,
   created_at   timestamptz not null default now()
 );
+
+-- Additive migration for databases created before `meta` existed.
+alter table scans add column if not exists meta jsonb not null default '{}'::jsonb;
 
 create index if not exists scans_created_at_idx on scans (created_at desc);
 

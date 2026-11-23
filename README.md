@@ -7,7 +7,8 @@ Seaworthy runs fast, public, deterministic checks against a URL and returns evid
 ## V1 (current)
 
 - **Fast Scan**: public URL scan with 30 high-impact deterministic checks
-- **Evidence-backed findings**: severity, verdict, evidence, and plain-English fix
+- **Evidence-backed findings**: severity, type (exposure / signal / hardening), evidence, and plain-English fix
+- **Honest scoring**: a separate exposure score and hardening score; header gaps cannot dominate the risk score
 - **Report**: shareable report page and PDF export
 - **Waitlist**: in-app capture for Full Report and Monitor
 - **Safety**: SSRF/DNS guard, port allowlist, redirect re-validation, response size cap, rate limits, body limits, honeypot
@@ -20,6 +21,8 @@ Seaworthy runs fast, public, deterministic checks against a URL and returns evid
 - `docs/Seaworthy-Plan-v1.pdf` - current plan (canonical)
 - `docs/Seaworthy-Plan-v1.1.pdf` - dated copy of current plan
 - `docs/Seaworthy-Versions-Roadmap.md` - full V1→V4 roadmap
+- `docs/METHODOLOGY.md` - what a finding means, scoring, and false-positive controls
+- `docs/QA-V1.md` - QA record
 - `DEPLOYMENT.md` - production deploy checklist
 
 ## Stack
@@ -66,9 +69,11 @@ npm run typecheck
 npm run build
 npm run start
 npm run db:migrate
+npm run qa
+npm run qa:credibility
 ```
 
-`npm run db:migrate` applies `db/schema.sql` to `DATABASE_URL`.
+`npm run db:migrate` applies `db/schema.sql` to `DATABASE_URL`. `npm run qa:credibility` re-scans Google, Cloudflare, and example.com and fails if a hardened site is treated as vulnerable.
 
 ## Project structure
 
@@ -109,6 +114,7 @@ npm run db:migrate
 ## Important notes
 
 - Fast Scan is **best-effort automated review**. It is **not a penetration test, certification, or guarantee**.
+- Findings are classified as **exposure**, **signal**, or **hardening**. Only exposures move the risk score meaningfully; header gaps are hardening notes, not vulnerabilities. See `docs/METHODOLOGY.md`.
 - Public URLs only. Private/internal hosts, non-80/443 ports, and private DNS resolutions are blocked.
 - Deep/authenticated/runtime audits require separate sandboxed execution and are not part of V1 fast scan.
 - The scan fetches a target once per scan and does not execute target code.

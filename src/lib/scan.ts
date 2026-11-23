@@ -1,16 +1,23 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { CHECKS } from "./checks";
+import { CHECKS, buildManualChecks, type CheckContext } from "./checks";
 import { site } from "./site";
 
 export type ScanSeverity = "critical" | "high" | "medium" | "low";
 export type Verdict = "confirmed" | "needs_validation" | "rejected";
+/**
+ * exposure: something that looks like a real leak or exploitable misconfiguration.
+ * signal:   a pattern worth validating, but not proof of a problem.
+ * hardening: a best-practice gap (headers, hygiene) with little direct exploitability.
+ */
+export type FindingType = "exposure" | "signal" | "hardening";
 
 export type Finding = {
   id: string;
   title: string;
   severity: ScanSeverity;
   verdict: Verdict;
+  type: FindingType;
   evidence: string;
   fix: string;
 };
@@ -19,25 +26,56 @@ export type CheckRun = {
   id: string;
   name: string;
   category: string;
-  status: "pass" | "fail" | "needs_validation" | "error";
+  status: "pass" | "fail" | "needs_validation" | "skipped" | "error";
   severity: ScanSeverity;
+  type: FindingType;
+};
+
+export type ManualCheck = {
+  id: string;
+  title: string;
+  why: string;
+};
+
+export type ScanContextInfo = {
+  finalUrl: string;
+  status: number;
+  contentType: string;
+  bodyScanned: boolean;
+  truncated: boolean;
+  hasForms: boolean;
+  hasPasswordForm: boolean;
+  hasPaymentScript: boolean;
+  sensitive: boolean;
 };
 
 export type ScanResult = {
   url: string;
+  finalUrl: string;
   score: number;
+  hardeningScore: number;
   coverage: number;
   checksRun: number;
   checksTotal: number;
   durationMs: number;
   findings: Finding[];
+  manualChecks: ManualCheck[];
+  notes: string[];
+  context: ScanContextInfo;
   summary: string;
   receiptId: string;
   checks: CheckRun[];
-  counts: { confirmed: number; needs_validation: number; rejected: number };
+  counts: {
+    confirmed: number;
+    needs_validation: number;
+    rejected: number;
+    exposures: number;
+    signals: number;
+    hardening: number;
+  };
 };
 
-export const CHECKS_TOTAL = 30;
+export const CHECKS_TOTAL = CHECKS.length;
 
 const MAX_RESPONSE_BYTES = 300_000;
 const MAX_REDIRECTS = 5;
@@ -145,8 +183,8 @@ async function assertPublicHost(url: URL) {
   }
 }
 
-async function readCapped(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) return "";
+async function readCapped(response: Response, maxBytes: number): Promise<{ html: string; truncated: boolean }> {
+  if (!response.body) return { html: "", truncated: false };
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let total = 0;
@@ -169,13 +207,16 @@ async function readCapped(response: Response, maxBytes: number): Promise<string>
   }
 
   out += decoder.decode();
-  return out.slice(0, maxBytes);
+  return { html: out.slice(0, maxBytes), truncated: total >= maxBytes };
 }
 
 async function fetchWithGuards(startUrl: URL): Promise<{
   finalUrl: URL;
   headers: Headers | null;
   html: string;
+  status: number;
+  contentType: string;
+  truncated: boolean;
 }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -192,6 +233,7 @@ async function fetchWithGuards(startUrl: URL): Promise<{
         headers: {
           "user-agent": `SeaworthyFastScan/0.1 (+${site.url})`,
           accept: "text/html,application/xhtml+xml",
+          "accept-language": "en",
         },
         cache: "no-store",
       });
@@ -199,7 +241,15 @@ async function fetchWithGuards(startUrl: URL): Promise<{
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
         if (!location) {
-          return { finalUrl: current, headers: response.headers, html: "" };
+          const body = await readCapped(response, MAX_RESPONSE_BYTES);
+          return {
+            finalUrl: current,
+            headers: response.headers,
+            html: body.html,
+            status: response.status,
+            contentType: response.headers.get("content-type") || "",
+            truncated: body.truncated,
+          };
         }
         if (hop === MAX_REDIRECTS) throw new ScanInputError("Too many redirects.");
         let next: URL;
@@ -218,8 +268,15 @@ async function fetchWithGuards(startUrl: URL): Promise<{
         continue;
       }
 
-      const html = await readCapped(response, MAX_RESPONSE_BYTES);
-      return { finalUrl: current, headers: response.headers, html };
+      const body = await readCapped(response, MAX_RESPONSE_BYTES);
+      return {
+        finalUrl: current,
+        headers: response.headers,
+        html: body.html,
+        status: response.status,
+        contentType: response.headers.get("content-type") || "",
+        truncated: body.truncated,
+      };
     }
 
     throw new ScanInputError("Too many redirects.");
@@ -228,12 +285,84 @@ async function fetchWithGuards(startUrl: URL): Promise<{
   }
 }
 
-function scoreFromFindings(findings: Finding[]): number {
-  const weights: Record<ScanSeverity, number> = { critical: 24, high: 14, medium: 7, low: 3 };
-  const penalty = findings
-    .filter((finding) => finding.verdict !== "rejected")
-    .reduce((sum, finding) => sum + weights[finding.severity], 0);
-  return Math.max(8, Math.min(100, 100 - penalty));
+const EXPOSURE_WEIGHTS: Record<ScanSeverity, number> = { critical: 32, high: 20, medium: 10, low: 4 };
+const SIGNAL_WEIGHTS: Record<ScanSeverity, number> = { critical: 10, high: 7, medium: 4, low: 2 };
+const HARDENING_WEIGHTS: Record<ScanSeverity, number> = { critical: 3, high: 2, medium: 1, low: 0.5 };
+const HARDENING_SCORE_WEIGHTS: Record<ScanSeverity, number> = { critical: 25, high: 15, medium: 8, low: 3 };
+const HARDENING_CAP = 6;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function scoreFindings(findings: Finding[]) {
+  let exposure = 0;
+  let signal = 0;
+  let hardening = 0;
+  let hardeningForScore = 0;
+
+  for (const finding of findings) {
+    if (finding.verdict === "rejected") continue;
+    if (finding.type === "exposure") exposure += EXPOSURE_WEIGHTS[finding.severity];
+    else if (finding.type === "signal") signal += SIGNAL_WEIGHTS[finding.severity];
+    else {
+      hardening += HARDENING_WEIGHTS[finding.severity];
+      hardeningForScore += HARDENING_SCORE_WEIGHTS[finding.severity];
+    }
+  }
+
+  return {
+    score: clamp(Math.round(100 - exposure - signal - Math.min(hardening, HARDENING_CAP)), 5, 100),
+    hardeningScore: clamp(Math.round(100 - hardeningForScore), 0, 100),
+  };
+}
+
+function buildSummary(findings: Finding[], context: ScanContextInfo) {
+  const exposures = findings.filter((f) => f.type === "exposure" && f.verdict !== "rejected").length;
+  const signals = findings.filter((f) => f.type === "signal" && f.verdict !== "rejected").length;
+  const hardening = findings.filter((f) => f.type === "hardening" && f.verdict !== "rejected").length;
+  const critical = findings.filter((f) => f.severity === "critical" && f.verdict !== "rejected").length;
+
+  if (!context.bodyScanned) {
+    return `Only response headers were evaluated (status ${context.status}, content-type ${context.contentType || "unknown"}). Content checks were skipped.`;
+  }
+
+  if (findings.length === 0) {
+    return "No exposure signals or hardening gaps were observed on this public page. This is not a guarantee that the app is secure.";
+  }
+
+  const parts: string[] = [];
+  if (exposures) parts.push(`${exposures} exposure signal${exposures === 1 ? "" : "s"}`);
+  if (signals) parts.push(`${signals} item${signals === 1 ? "" : "s"} needing validation`);
+  if (hardening) parts.push(`${hardening} hardening suggestion${hardening === 1 ? "" : "s"}`);
+
+  const lead = `Found ${parts.join(", ")}.`;
+  if (exposures) {
+    return `${lead}${critical ? ` ${critical} critical.` : ""} Review the evidence before launch; exposures are the highest priority.`;
+  }
+  return `${lead} No exposure signals were observed. Hardening gaps are best-practice notes, not proof of exploitability.`;
+}
+
+function buildNotes(url: URL, context: ScanContextInfo, findings: Finding[]): string[] {
+  const notes: string[] = [];
+  if (context.finalUrl && context.finalUrl !== url.toString()) {
+    notes.push(`The target redirected to ${context.finalUrl}. Results describe the final response.`);
+  }
+  if (!context.bodyScanned) {
+    notes.push(
+      `The response was status ${context.status} with content-type ${context.contentType || "unknown"}. Body checks (secrets, links, mixed content) were skipped; only response headers were evaluated.`,
+    );
+  }
+  if (context.truncated) {
+    notes.push("The HTML response was truncated at 300 KB. Signals that appear later in the page may be missed.");
+  }
+  if (context.sensitive) {
+    notes.push("This page appears to have an interactive or sensitive surface (login, payment, or forms). Validate auth and session handling manually.");
+  }
+  if (findings.length === 0) {
+    notes.push("A clean result covers one public page only. Authenticated routes, APIs, and runtime behavior were not tested.");
+  }
+  return notes;
 }
 
 export async function runFastScan(input: string): Promise<ScanResult> {
@@ -242,12 +371,20 @@ export async function runFastScan(input: string): Promise<ScanResult> {
 
   let html = "";
   let headers: Headers | null = null;
+  let finalUrl = url;
+  let status = 0;
+  let contentType = "";
+  let truncated = false;
   let fetchError = "";
 
   try {
     const result = await fetchWithGuards(url);
     headers = result.headers;
     html = result.html;
+    finalUrl = result.finalUrl;
+    status = result.status;
+    contentType = result.contentType;
+    truncated = result.truncated;
   } catch (error) {
     if (error instanceof ScanInputError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
@@ -257,11 +394,60 @@ export async function runFastScan(input: string): Promise<ScanResult> {
     }
   }
 
-  const ctx = { url, html, lower: html.toLowerCase(), headers, fetchError };
+  const bodyScanned =
+    !fetchError && status > 0 && status < 400 && /text\/html|application\/xhtml\+xml/i.test(contentType) && html.length > 0;
+  const lower = html.toLowerCase();
+  const hasForms = /<form\b/i.test(html);
+  const hasPasswordForm = /type=["']?password/i.test(html);
+  const hasPaymentScript = /js\.stripe\.com\/v3|checkout\.stripe\.com/i.test(html);
+  const sensitive = hasPasswordForm || hasPaymentScript;
+
+  const context: ScanContextInfo = {
+    finalUrl: finalUrl.toString(),
+    status,
+    contentType,
+    bodyScanned,
+    truncated,
+    hasForms,
+    hasPasswordForm,
+    hasPaymentScript,
+    sensitive,
+  };
+
+  const ctx: CheckContext = {
+    url,
+    finalUrl,
+    html,
+    lower,
+    headers,
+    fetchError,
+    bodyScanned,
+    truncated,
+    hasForms,
+    hasPasswordForm,
+    hasPaymentScript,
+    sensitive,
+  };
+
   const findings: Finding[] = [];
   const checks: CheckRun[] = [];
 
   for (const check of CHECKS) {
+    const needsBody = check.source === "body" || check.source === "both";
+    const needsHeaders = check.source === "headers" || check.source === "both";
+
+    if ((needsBody && !bodyScanned) || (needsHeaders && !headers)) {
+      checks.push({
+        id: check.id,
+        name: check.name,
+        category: check.category,
+        status: "skipped",
+        severity: check.severity,
+        type: check.type,
+      });
+      continue;
+    }
+
     try {
       const result = check.run(ctx);
       if (result) {
@@ -271,7 +457,8 @@ export async function runFastScan(input: string): Promise<ScanResult> {
           name: check.name,
           category: check.category,
           status: result.verdict === "needs_validation" ? "needs_validation" : "fail",
-          severity: check.severity,
+          severity: result.severity,
+          type: result.type,
         });
       } else {
         checks.push({
@@ -280,6 +467,7 @@ export async function runFastScan(input: string): Promise<ScanResult> {
           category: check.category,
           status: "pass",
           severity: check.severity,
+          type: check.type,
         });
       }
     } catch {
@@ -289,32 +477,38 @@ export async function runFastScan(input: string): Promise<ScanResult> {
         category: check.category,
         status: "error",
         severity: check.severity,
+        type: check.type,
       });
     }
   }
 
   const dedup = Array.from(new Map(findings.map((finding) => [finding.id, finding])).values());
-  const score = scoreFromFindings(dedup);
-  const checksRun = checks.filter((check) => check.status !== "error").length;
+  const { score, hardeningScore } = scoreFindings(dedup);
+  const checksRun = checks.filter((check) => check.status !== "error" && check.status !== "skipped").length;
   const coverage = Math.round((checksRun / CHECKS_TOTAL) * 100);
   const confirmed = dedup.filter((finding) => finding.verdict === "confirmed").length;
   const needsValidation = dedup.filter((finding) => finding.verdict === "needs_validation").length;
-  const critical = dedup.filter((finding) => finding.severity === "critical" && finding.verdict === "confirmed").length;
-  const summary = dedup.length
-    ? `Found ${dedup.length} issue${dedup.length === 1 ? "" : "s"}${critical ? `, including ${critical} confirmed critical` : ""}. ${needsValidation ? `${needsValidation} need validation.` : "Review evidence before launch."}`
-    : "No high-signal public issues detected in this fast scan. A deep audit is still required before launch.";
+  const exposures = dedup.filter((finding) => finding.type === "exposure").length;
+  const signals = dedup.filter((finding) => finding.type === "signal").length;
+  const hardening = dedup.filter((finding) => finding.type === "hardening").length;
+  const manualChecks = buildManualChecks(ctx);
 
   return {
     url: url.toString(),
+    finalUrl: finalUrl.toString(),
     score,
+    hardeningScore,
     coverage,
     checksRun,
     checksTotal: CHECKS_TOTAL,
     durationMs: Date.now() - started,
     findings: dedup,
-    summary,
+    manualChecks,
+    notes: buildNotes(url, context, dedup),
+    context,
+    summary: buildSummary(dedup, context),
     receiptId: `SW-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
     checks,
-    counts: { confirmed, needs_validation: needsValidation, rejected: 0 },
+    counts: { confirmed, needs_validation: needsValidation, rejected: 0, exposures, signals, hardening },
   };
 }
