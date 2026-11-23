@@ -6,7 +6,7 @@ Seaworthy runs fast, public, deterministic checks against a URL and returns evid
 
 ## V1 (current)
 
-- **Fast Scan**: public URL scan with 30 high-impact deterministic checks
+- **Fast Scan**: public URL scan with 34 deterministic checks, including same-origin JS bundle secret scanning
 - **Evidence-backed findings**: severity, type (exposure / signal / hardening), evidence, and plain-English fix
 - **Honest scoring**: a separate exposure score and hardening score; header gaps cannot dominate the risk score
 - **Report**: shareable report page and PDF export
@@ -72,6 +72,7 @@ npm run start
 npm run db:migrate
 npm run qa
 npm run qa:credibility
+npm test
 ```
 
 `npm run db:migrate` applies `db/schema.sql` to `DATABASE_URL`. `npm run qa:credibility` re-scans Google, Cloudflare, and example.com and fails if a hardened site is treated as vulnerable.
@@ -80,8 +81,9 @@ npm run qa:credibility
 
 - `src/app/` - pages and API routes (`/`, `/report/[id]`, `/terms`, `/privacy`, `/security`, `/api/*`)
 - `src/components/` - UI components
-- `src/lib/checks.ts` - deterministic V1 checks
-- `src/lib/scan.ts` - scan orchestration, scoring, coverage, SSRF/DNS guard
+- `src/lib/checks.ts` - deterministic fast-scan checks
+- `src/lib/deep-checks.ts` / `src/lib/deep.ts` - gated deep-scan checks (paid tier foundation)
+- `src/lib/scan.ts` - scan orchestration, scoring, coverage, SSRF/DNS guard, JS bundle fetching
 - `src/lib/store.ts` - storage abstraction (Postgres or local file)
 - `src/lib/db.ts` - Postgres queries and pool
 - `src/lib/rate-limit.ts` - Upstash or in-memory rate limiting
@@ -92,7 +94,7 @@ npm run qa:credibility
 
 ## API
 
-- `POST /api/scan` - run a fast scan (`{ "url": "https://example.com" }`)
+- `POST /api/scan` - run a scan (`{ "url": "https://example.com", "mode": "fast" }`; `deep` requires paid key gate)
 - `POST /api/waitlist` - join the waitlist (`{ "email": "you@example.com" }`)
 - `GET /api/report/[id]` - JSON report
 - `GET /api/report/[id]/pdf` - PDF report

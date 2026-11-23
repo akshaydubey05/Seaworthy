@@ -71,7 +71,7 @@ async function ReportBody({ params }: { params: Promise<{ id: string }> }) {
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="eyebrow mb-3">Audit receipt</p>
+          <p className="eyebrow mb-3">Audit receipt · {scan.mode === "deep" ? "Deep scan" : "Fast scan"}</p>
           <h1 className="text-4xl font-medium tracking-[-0.04em] sm:text-5xl">{scan.receiptId}</h1>
           <p className="mt-2 break-all text-[var(--muted)]">{scan.finalUrl || scan.url}</p>
         </div>

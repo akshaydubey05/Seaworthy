@@ -28,6 +28,7 @@ type ScanMeta = {
   manualChecks?: ScanResult["manualChecks"];
   notes?: string[];
   context?: ScanResult["context"];
+  mode?: ScanResult["mode"];
 };
 
 export async function saveScanRecord(result: ScanResult) {
@@ -37,6 +38,7 @@ export async function saveScanRecord(result: ScanResult) {
     manualChecks: result.manualChecks,
     notes: result.notes,
     context: result.context,
+    mode: result.mode,
   };
 
   await getPool().query(
@@ -90,6 +92,7 @@ export async function getScanRecord(id: string): Promise<(ScanResult & { savedAt
     receiptId: row.receipt_id,
     url: row.url,
     finalUrl: meta.finalUrl || row.url,
+    mode: meta.mode || "fast",
     score: row.score,
     hardeningScore: meta.hardeningScore ?? row.score,
     coverage: row.coverage,
@@ -99,16 +102,17 @@ export async function getScanRecord(id: string): Promise<(ScanResult & { savedAt
     findings: row.findings,
     manualChecks: meta.manualChecks || [],
     notes: meta.notes || [],
-    context: meta.context || {
-      finalUrl: meta.finalUrl || row.url,
-      status: 200,
-      contentType: "text/html",
-      bodyScanned: true,
-      truncated: false,
-      hasForms: false,
-      hasPasswordForm: false,
-      hasPaymentScript: false,
-      sensitive: false,
+    context: {
+      finalUrl: meta.context?.finalUrl || meta.finalUrl || row.url,
+      status: meta.context?.status ?? 200,
+      contentType: meta.context?.contentType || "text/html",
+      bodyScanned: meta.context?.bodyScanned ?? true,
+      truncated: meta.context?.truncated ?? false,
+      hasForms: meta.context?.hasForms ?? false,
+      hasPasswordForm: meta.context?.hasPasswordForm ?? false,
+      hasPaymentScript: meta.context?.hasPaymentScript ?? false,
+      sensitive: meta.context?.sensitive ?? false,
+      scriptsScanned: meta.context?.scriptsScanned ?? 0,
     },
     summary: row.summary,
     checks: row.checks,

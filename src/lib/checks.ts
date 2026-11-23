@@ -1,4 +1,12 @@
-import type { Finding, FindingType, ManualCheck, ScanSeverity } from "./scan";
+import type { Finding, FindingType, ManualCheck, ScanMode, ScanSeverity } from "./scan";
+
+/** A same-origin JavaScript bundle fetched and scanned for leaked material. */
+export type ScriptAsset = {
+  url: string;
+  content: string;
+  bytes: number;
+  truncated: boolean;
+};
 
 export type CheckContext = {
   url: URL;
@@ -13,6 +21,8 @@ export type CheckContext = {
   hasPasswordForm: boolean;
   hasPaymentScript: boolean;
   sensitive: boolean;
+  scripts: ScriptAsset[];
+  mode: ScanMode;
 };
 
 export type CheckDef = {
@@ -24,6 +34,7 @@ export type CheckDef = {
   /** Which part of the response the check needs. */
   source: "body" | "headers" | "both" | "url";
   run: (ctx: CheckContext) => Finding | null;
+  asyncRun?: (ctx: CheckContext) => Promise<Finding | null>;
 };
 
 const f = (
@@ -48,6 +59,71 @@ function setCookies(ctx: CheckContext): string[] {
 
 /** Resource-loading attributes only; itemtype/xmlns/a-href are not mixed content. */
 const MIXED_CONTENT = /(?:src|poster|action)\s*=\s*["']http:\/\/(?!localhost|127\.0\.0\.1)|<link\b[^>]*\bhref\s*=\s*["']http:\/\/(?!localhost|127\.0\.0\.1)/i;
+
+type SecretPattern = {
+  label: string;
+  re: RegExp;
+  severity: ScanSeverity;
+};
+
+/** High-confidence token shapes only. Generic `sk-…` strings are excluded on purpose. */
+const CLOUD_TOKEN_PATTERNS: SecretPattern[] = [
+  { label: "AWS access key ID", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/, severity: "critical" },
+  { label: "GitHub token", re: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})\b/, severity: "critical" },
+  { label: "Slack token", re: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, severity: "critical" },
+];
+
+const BUNDLE_SECRET_PATTERNS: SecretPattern[] = [
+  ...CLOUD_TOKEN_PATTERNS,
+  { label: "Stripe live secret key", re: /\bsk_live_[0-9a-zA-Z]{16,}\b/, severity: "critical" },
+  {
+    label: "AI provider key",
+    re: /\bsk-(?:proj|svcacct|ant|or)-[A-Za-z0-9_-]{20,}\b|\bAIzaSy[A-Za-z0-9_-]{30,}\b/,
+    severity: "critical",
+  },
+  {
+    label: "private key block",
+    re: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+    severity: "critical",
+  },
+  {
+    label: "Supabase service role JWT",
+    re: /service_role[\s\S]{0,200}eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
+    severity: "critical",
+  },
+];
+
+function redact(value: string) {
+  if (value.length <= 10) return `${value.slice(0, 2)}…`;
+  return `${value.slice(0, 6)}…${value.length} chars`;
+}
+
+function shortUrl(raw: string) {
+  try {
+    const url = new URL(raw);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return raw;
+  }
+}
+
+function findSecret(text: string, patterns: SecretPattern[] = BUNDLE_SECRET_PATTERNS) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern.re);
+    if (match) return { ...pattern, value: match[0] };
+  }
+  return null;
+}
+
+function parseCsp(value: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of value.split(";")) {
+    const [name, ...rest] = part.trim().split(/\s+/);
+    if (name) out[name.toLowerCase()] = rest.join(" ");
+  }
+  return out;
+}
+
 
 export const CHECKS: CheckDef[] = [
   {
@@ -118,10 +194,13 @@ export const CHECKS: CheckDef[] = [
     severity: "medium",
     type: "signal",
     source: "body",
-    run: (c) =>
-      /sourceMappingURL=/i.test(c.html) || /src=["'][^"']+\.js\.map/i.test(c.html)
+    run: (c) => {
+      const inHtml = /sourceMappingURL=/i.test(c.html) || /src=["'][^"']+\.js\.map/i.test(c.html);
+      const inBundle = c.scripts.some((script) => /sourceMappingURL=\s*\S+\.map/i.test(script.content));
+      return inHtml || inBundle
         ? f("SW-006", "Source maps may be exposed", "medium", "signal", "needs_validation", "Detected a sourceMappingURL or .js.map reference in fetched content.", "Disable production source maps or restrict access to them.")
-        : null,
+        : null;
+    },
   },
   {
     id: "SW-007",
@@ -438,6 +517,83 @@ export const CHECKS: CheckDef[] = [
       c.finalUrl.protocol === "http:"
         ? f("SW-031", "Target is served over plain HTTP", "medium", "exposure", "confirmed", "The final response uses http://, so content and credentials can be intercepted or modified in transit.", "Serve the app over HTTPS and redirect all HTTP traffic to HTTPS.")
         : null,
+  },
+  {
+    id: "SW-032",
+    name: "Secret in client JavaScript",
+    category: "Secrets",
+    severity: "critical",
+    type: "exposure",
+    source: "body",
+    run: (c) => {
+      if (!c.scripts.length) return null;
+      for (const script of c.scripts) {
+        const hit = findSecret(script.content);
+        if (!hit) continue;
+        return f(
+          "SW-032",
+          `Possible ${hit.label} in client JavaScript`,
+          hit.severity,
+          "exposure",
+          "confirmed",
+          `${hit.label} pattern matched in ${shortUrl(script.url)} (value redacted: ${redact(hit.value)}). Anything shipped in a browser bundle is public.`,
+          "Remove the secret from client bundles, rotate it immediately, and call the provider from a server route or function.",
+        );
+      }
+      return null;
+    },
+  },
+  {
+    id: "SW-033",
+    name: "CSP quality",
+    category: "Headers",
+    severity: "low",
+    type: "hardening",
+    source: "headers",
+    run: (c) => {
+      const csp = header(c, "content-security-policy");
+      if (!csp) return null;
+      const directives = parseCsp(csp);
+      const scriptSrc = directives["script-src"] || directives["default-src"] || "";
+      const hasNonceOrHash = /'nonce-|'sha(?:256|384|512)-|'strict-dynamic'/i.test(scriptSrc);
+      const issues: string[] = [];
+      if (/'unsafe-eval'/i.test(scriptSrc)) issues.push("'unsafe-eval' is allowed");
+      if (/'unsafe-inline'/i.test(scriptSrc) && !hasNonceOrHash) {
+        issues.push("'unsafe-inline' is allowed without a nonce, hash, or strict-dynamic");
+      }
+      if (!directives["object-src"] && !directives["default-src"]) issues.push("object-src is not restricted");
+      if (!issues.length) return null;
+      return f(
+        "SW-033",
+        "Content-Security-Policy is weak",
+        "low",
+        "hardening",
+        "confirmed",
+        `The enforcing CSP has gaps: ${issues.join("; ")}.`,
+        "Tighten script-src with nonces or hashes, remove unsafe-eval, and set object-src 'none'.",
+      );
+    },
+  },
+  {
+    id: "SW-034",
+    name: "Cloud provider token",
+    category: "Secrets",
+    severity: "critical",
+    type: "exposure",
+    source: "body",
+    run: (c) => {
+      const hit = findSecret(c.html, CLOUD_TOKEN_PATTERNS);
+      if (!hit) return null;
+      return f(
+        "SW-034",
+        `Possible ${hit.label} exposed in page content`,
+        hit.severity,
+        "exposure",
+        "confirmed",
+        `${hit.label} pattern matched in public HTML (value redacted: ${redact(hit.value)}).`,
+        "Rotate the credential, move it to a server-side secret store, and audit git history for other copies.",
+      );
+    },
   },
 ];
 

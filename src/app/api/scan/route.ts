@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { runDeepScan } from "@/lib/deep";
 import { runFastScan } from "@/lib/scan";
 import { saveScan } from "@/lib/store";
 import { rateLimit, rateLimitKey } from "@/lib/rate-limit";
@@ -6,6 +7,7 @@ import { captureError, logEvent } from "@/lib/observability";
 
 const MAX_BODY_BYTES = 4096;
 const LIMIT = 6;
+const DEEP_LIMIT = 2;
 const WINDOW_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
@@ -37,9 +39,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
     }
 
-    let body: { url?: unknown };
+    let body: { url?: unknown; mode?: unknown };
     try {
-      body = JSON.parse(raw || "{}") as { url?: unknown };
+      body = JSON.parse(raw || "{}") as { url?: unknown; mode?: unknown };
     } catch {
       return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
     }
@@ -51,13 +53,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URL is too long." }, { status: 400 });
     }
 
-    const result = await runFastScan(body.url);
+    const requestedMode = body.mode === "deep" ? "deep" : "fast";
+    if (requestedMode === "deep") {
+      const deepEnabled = process.env.DEEP_SCAN_ENABLED === "true";
+      const deepKey = process.env.DEEP_SCAN_KEY;
+      const providedKey = request.headers.get("x-seaworthy-deep-key");
+      if (!deepEnabled || !deepKey || providedKey !== deepKey) {
+        return NextResponse.json(
+          { error: "Deep scan is available on the paid tier. Enable it with a valid deep-scan key." },
+          { status: 402 },
+        );
+      }
+
+      const deepLimit = await rateLimit({
+        key: rateLimitKey("scan-deep", request),
+        limit: DEEP_LIMIT,
+        windowMs: WINDOW_MS,
+      });
+      if (!deepLimit.ok) {
+        return NextResponse.json(
+          { error: "Too many deep scans from this network. Try again shortly." },
+          { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((deepLimit.resetAt - Date.now()) / 1000))) } },
+        );
+      }
+    }
+
+    const result = requestedMode === "deep" ? await runDeepScan(body.url) : await runFastScan(body.url);
     await saveScan(result).catch((error) => {
       logEvent("warn", "scan_persist_failed", { error });
     });
 
     logEvent("info", "scan_completed", {
       receiptId: result.receiptId,
+      mode: result.mode,
       score: result.score,
       findings: result.findings.length,
       durationMs: result.durationMs,

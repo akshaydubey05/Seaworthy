@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { CHECKS, buildManualChecks, type CheckContext } from "./checks";
+import { CHECKS, buildManualChecks, type CheckContext, type ScriptAsset } from "./checks";
 import { site } from "./site";
 
 export type ScanSeverity = "critical" | "high" | "medium" | "low";
@@ -47,11 +47,15 @@ export type ScanContextInfo = {
   hasPasswordForm: boolean;
   hasPaymentScript: boolean;
   sensitive: boolean;
+  scriptsScanned: number;
 };
+
+export type ScanMode = "fast" | "deep";
 
 export type ScanResult = {
   url: string;
   finalUrl: string;
+  mode: ScanMode;
   score: number;
   hardeningScore: number;
   coverage: number;
@@ -75,11 +79,19 @@ export type ScanResult = {
   };
 };
 
+export type ScanOptions = {
+  scriptLimit?: number;
+  perAssetBytes?: number;
+  fetchImpl?: typeof fetch;
+  mode?: ScanMode;
+};
+
 export const CHECKS_TOTAL = CHECKS.length;
 
 const MAX_RESPONSE_BYTES = 300_000;
 const MAX_REDIRECTS = 5;
 const FETCH_TIMEOUT_MS = 12_000;
+const SCRIPT_TIMEOUT_MS = 4_000;
 const ALLOWED_PORTS = new Set(["", "80", "443"]);
 
 export class ScanInputError extends Error {}
@@ -120,7 +132,7 @@ function isPrivateIp(ip: string): boolean {
   return true;
 }
 
-function normalizeUrl(input: string): URL {
+export function normalizeUrl(input: string): URL {
   const raw = input.trim();
   if (!raw) throw new ScanInputError("A URL is required.");
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
@@ -161,7 +173,7 @@ function normalizeUrl(input: string): URL {
   return url;
 }
 
-async function assertPublicHost(url: URL) {
+export async function assertPublicHost(url: URL) {
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (isIP(host)) {
     if (isPrivateIp(host)) throw new ScanInputError("Local and private network URLs are not allowed.");
@@ -210,7 +222,10 @@ async function readCapped(response: Response, maxBytes: number): Promise<{ html:
   return { html: out.slice(0, maxBytes), truncated: total >= maxBytes };
 }
 
-async function fetchWithGuards(startUrl: URL): Promise<{
+async function fetchWithGuards(
+  startUrl: URL,
+  fetchImpl: typeof fetch,
+): Promise<{
   finalUrl: URL;
   headers: Headers | null;
   html: string;
@@ -227,7 +242,7 @@ async function fetchWithGuards(startUrl: URL): Promise<{
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
       await assertPublicHost(current);
 
-      const response = await fetch(current.toString(), {
+      const response = await fetchImpl(current.toString(), {
         signal: controller.signal,
         redirect: "manual",
         headers: {
@@ -285,6 +300,68 @@ async function fetchWithGuards(startUrl: URL): Promise<{
   }
 }
 
+function extractScriptSrcs(html: string, baseUrl: URL): URL[] {
+  const seen = new Set<string>();
+  const urls: URL[] = [];
+  for (const match of html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+    const raw = match[1];
+    if (!raw || raw.startsWith("data:")) continue;
+    let resolved: URL;
+    try {
+      resolved = new URL(raw, baseUrl);
+    } catch {
+      continue;
+    }
+    if (resolved.origin !== baseUrl.origin) continue;
+    if (!["http:", "https:"].includes(resolved.protocol)) continue;
+    const key = resolved.toString();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    urls.push(resolved);
+  }
+  return urls;
+}
+
+async function fetchScripts(
+  urls: URL[],
+  limit: number,
+  perAssetBytes: number,
+  fetchImpl: typeof fetch,
+): Promise<ScriptAsset[]> {
+  const selected = urls.slice(0, limit);
+  const results = await Promise.all(
+    selected.map(async (url) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), SCRIPT_TIMEOUT_MS);
+      try {
+        await assertPublicHost(url);
+        const response = await fetchImpl(url.toString(), {
+          signal: controller.signal,
+          redirect: "follow",
+          headers: {
+            "user-agent": `SeaworthyFastScan/0.1 (+${site.url})`,
+            accept: "application/javascript,text/javascript,*/*",
+          },
+          cache: "no-store",
+        });
+        if (!response.ok) return null;
+        const body = await readCapped(response, perAssetBytes);
+        return {
+          url: url.toString(),
+          content: body.html,
+          bytes: body.html.length,
+          truncated: body.truncated,
+        } satisfies ScriptAsset;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }),
+  );
+  return results.filter((item): item is ScriptAsset => Boolean(item));
+}
+
 const EXPOSURE_WEIGHTS: Record<ScanSeverity, number> = { critical: 32, high: 20, medium: 10, low: 4 };
 const SIGNAL_WEIGHTS: Record<ScanSeverity, number> = { critical: 10, high: 7, medium: 4, low: 2 };
 const HARDENING_WEIGHTS: Record<ScanSeverity, number> = { critical: 3, high: 2, medium: 1, low: 0.5 };
@@ -295,7 +372,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function scoreFindings(findings: Finding[]) {
+export function scoreFindings(findings: Finding[]) {
   let exposure = 0;
   let signal = 0;
   let hardening = 0;
@@ -356,6 +433,9 @@ function buildNotes(url: URL, context: ScanContextInfo, findings: Finding[]): st
   if (context.truncated) {
     notes.push("The HTML response was truncated at 300 KB. Signals that appear later in the page may be missed.");
   }
+  if (context.scriptsScanned > 0) {
+    notes.push(`Scanned ${context.scriptsScanned} same-origin JavaScript bundle(s) for leaked credentials.`);
+  }
   if (context.sensitive) {
     notes.push("This page appears to have a login or payment surface. Validate auth, session handling, and webhook verification manually.");
   }
@@ -365,9 +445,55 @@ function buildNotes(url: URL, context: ScanContextInfo, findings: Finding[]): st
   return notes;
 }
 
-export async function runFastScan(input: string): Promise<ScanResult> {
+export function finalizeScan(params: {
+  base: ScanResult;
+  findings: Finding[];
+  checks: CheckRun[];
+  manualChecks: ManualCheck[];
+  notes: string[];
+  totalChecks: number;
+  mode: ScanMode;
+  startedAt: number;
+}): ScanResult {
+  const { base } = params;
+  const dedup = Array.from(new Map(params.findings.map((finding) => [finding.id, finding])).values());
+  const { score, hardeningScore } = scoreFindings(dedup);
+  const checksRun = params.checks.filter((check) => check.status !== "error" && check.status !== "skipped").length;
+  const coverage = Math.round((checksRun / params.totalChecks) * 100);
+  const counts = {
+    confirmed: dedup.filter((finding) => finding.verdict === "confirmed").length,
+    needs_validation: dedup.filter((finding) => finding.verdict === "needs_validation").length,
+    rejected: 0,
+    exposures: dedup.filter((finding) => finding.type === "exposure").length,
+    signals: dedup.filter((finding) => finding.type === "signal").length,
+    hardening: dedup.filter((finding) => finding.type === "hardening").length,
+  };
+
+  return {
+    ...base,
+    mode: params.mode,
+    score,
+    hardeningScore,
+    coverage,
+    checksRun,
+    checksTotal: params.totalChecks,
+    findings: dedup,
+    checks: params.checks,
+    manualChecks: params.manualChecks,
+    notes: params.notes,
+    summary: buildSummary(dedup, base.context),
+    counts,
+    durationMs: Math.max(1, Date.now() - params.startedAt),
+  };
+}
+
+export async function executeScan(
+  input: string,
+  options: ScanOptions = {},
+): Promise<{ result: ScanResult; ctx: CheckContext }> {
   const started = Date.now();
   const url = normalizeUrl(input);
+  const fetchImpl = options.fetchImpl || fetch;
 
   let html = "";
   let headers: Headers | null = null;
@@ -378,7 +504,7 @@ export async function runFastScan(input: string): Promise<ScanResult> {
   let fetchError = "";
 
   try {
-    const result = await fetchWithGuards(url);
+    const result = await fetchWithGuards(url, fetchImpl);
     headers = result.headers;
     html = result.html;
     finalUrl = result.finalUrl;
@@ -402,6 +528,15 @@ export async function runFastScan(input: string): Promise<ScanResult> {
   const hasPaymentScript = /js\.stripe\.com\/v3|checkout\.stripe\.com/i.test(html);
   const sensitive = hasPasswordForm || hasPaymentScript;
 
+  const scripts = bodyScanned
+    ? await fetchScripts(
+        extractScriptSrcs(html, finalUrl),
+        options.scriptLimit ?? 2,
+        options.perAssetBytes ?? 150_000,
+        fetchImpl,
+      )
+    : [];
+
   const context: ScanContextInfo = {
     finalUrl: finalUrl.toString(),
     status,
@@ -412,6 +547,7 @@ export async function runFastScan(input: string): Promise<ScanResult> {
     hasPasswordForm,
     hasPaymentScript,
     sensitive,
+    scriptsScanned: scripts.length,
   };
 
   const ctx: CheckContext = {
@@ -427,6 +563,8 @@ export async function runFastScan(input: string): Promise<ScanResult> {
     hasPasswordForm,
     hasPaymentScript,
     sensitive,
+    scripts,
+    mode: options.mode || "fast",
   };
 
   const findings: Finding[] = [];
@@ -482,33 +620,42 @@ export async function runFastScan(input: string): Promise<ScanResult> {
     }
   }
 
-  const dedup = Array.from(new Map(findings.map((finding) => [finding.id, finding])).values());
-  const { score, hardeningScore } = scoreFindings(dedup);
-  const checksRun = checks.filter((check) => check.status !== "error" && check.status !== "skipped").length;
-  const coverage = Math.round((checksRun / CHECKS_TOTAL) * 100);
-  const confirmed = dedup.filter((finding) => finding.verdict === "confirmed").length;
-  const needsValidation = dedup.filter((finding) => finding.verdict === "needs_validation").length;
-  const exposures = dedup.filter((finding) => finding.type === "exposure").length;
-  const signals = dedup.filter((finding) => finding.type === "signal").length;
-  const hardening = dedup.filter((finding) => finding.type === "hardening").length;
   const manualChecks = buildManualChecks(ctx);
-
-  return {
+  const base: ScanResult = {
     url: url.toString(),
     finalUrl: finalUrl.toString(),
-    score,
-    hardeningScore,
-    coverage,
-    checksRun,
+    mode: options.mode || "fast",
+    score: 100,
+    hardeningScore: 100,
+    coverage: 0,
+    checksRun: 0,
     checksTotal: CHECKS_TOTAL,
     durationMs: Date.now() - started,
-    findings: dedup,
+    findings: [],
     manualChecks,
-    notes: buildNotes(url, context, dedup),
+    notes: buildNotes(url, context, findings),
     context,
-    summary: buildSummary(dedup, context),
+    summary: "",
     receiptId: `SW-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-    checks,
-    counts: { confirmed, needs_validation: needsValidation, rejected: 0, exposures, signals, hardening },
+    checks: [],
+    counts: { confirmed: 0, needs_validation: 0, rejected: 0, exposures: 0, signals: 0, hardening: 0 },
   };
+
+  const result = finalizeScan({
+    base,
+    findings,
+    checks,
+    manualChecks,
+    notes: base.notes,
+    totalChecks: CHECKS_TOTAL,
+    mode: options.mode || "fast",
+    startedAt: started,
+  });
+
+  return { result, ctx };
+}
+
+export async function runFastScan(input: string, options: ScanOptions = {}): Promise<ScanResult> {
+  const { result } = await executeScan(input, { ...options, mode: "fast" });
+  return result;
 }

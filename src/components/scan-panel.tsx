@@ -45,7 +45,7 @@ export function ScanPanel() {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, mode: "fast" }),
       });
       const data = (await res.json()) as ScanResult | { error?: string };
       if (!res.ok) throw new Error(("error" in data && data.error) || "Scan failed.");

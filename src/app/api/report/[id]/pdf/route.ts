@@ -42,7 +42,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   doc.fillColor("#111827").fontSize(22).text("Seaworthy Security Report", { continued: false });
   doc.moveDown(0.3);
   doc.fontSize(10).fillColor("#4B5563").text(
-    `Receipt: ${scan.receiptId}  |  Exposure score: ${scan.score}/100${hardeningScore === null ? "" : `  |  Hardening: ${hardeningScore}/100`}`,
+    `Receipt: ${scan.receiptId}  |  Mode: ${scan.mode === "deep" ? "Deep" : "Fast"}  |  Exposure score: ${scan.score}/100${hardeningScore === null ? "" : `  |  Hardening: ${hardeningScore}/100`}`,
   );
   doc.text(`Coverage: ${scan.coverage}%  |  Checks: ${scan.checksRun}/${scan.checksTotal}  |  Duration: ${Math.max(1, Math.round(scan.durationMs / 1000))}s`);
   doc.text(`Target: ${scan.finalUrl || scan.url}`);

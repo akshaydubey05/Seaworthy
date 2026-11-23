@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/db-migrate.mjs",
     "qa": "node scripts/qa-smoke.mjs",
-    "qa:credibility": "node scripts/credibility-check.mjs"
+    "qa:credibility": "node scripts/credibility-check.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@types/pdfkit": "^0.17.7",
@@ -33,9 +35,11 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^3.2.7",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

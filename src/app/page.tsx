@@ -124,7 +124,7 @@ export default function Home() {
         <section id="checks" className="section section-border">
           <div className="container grid gap-10 lg:grid-cols-12 lg:gap-8">
             <div className="lg:col-span-5" data-reveal>
-              <p className="eyebrow mb-4">V1 checks</p>
+              <p className="eyebrow mb-4">Fast scan checks</p>
               <h2 className="h2 mb-5 text-[clamp(2rem,4.5vw,3.25rem)]">The launch risks that cost real money.</h2>
               <p className="max-w-[34rem] text-[15px] leading-7 text-[var(--muted)]">
                 The fast scan focuses on high-signal issues common in AI-built apps. It catches obvious public exposure first, then tells you what needs deeper validation before launch.
@@ -175,7 +175,7 @@ export default function Home() {
                   <div>
                     <div className="eyebrow mb-2">Audit receipt</div>
                     <div className="text-[1.7rem] font-medium tracking-[-0.03em]">SW-1042</div>
-                    <div className="mt-1 text-sm text-[var(--muted)]">app.example.com · 30 checks planned</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">app.example.com · 34 checks planned</div>
                   </div>
                   <span className="pill"><span className="dot" />Coverage 87%</span>
                 </div>
@@ -238,25 +238,25 @@ export default function Home() {
                   name: "Fast Scan",
                   price: "$0",
                   desc: "For a quick pre-launch check.",
-                  items: ["Public URL scan", "Score and coverage", "30 deterministic checks", "Shareable report + PDF", "No login required"],
+                  items: ["Public URL scan", "34 checks + JS bundle scan", "Exposure + hardening scores", "Shareable report + PDF", "No login required"],
                   cta: "Run fast scan",
                   href: "#scan",
                   primary: false,
                 },
                 {
-                  name: "Full Report",
-                  price: "$19",
+                  name: "Deep Scan",
+                  price: "$29",
                   desc: "For founders about to charge money.",
-                  items: ["Deeper checks and evidence", "Fix prompts", "Trend history", "Launch checklist export"],
+                  items: ["Everything in Fast Scan", "8 JS bundles + deeper secret patterns", "TLS expiry, SPF/DMARC, security.txt", "CORS/cross-origin/CSP quality checks", "Priority fix guidance (V2)"],
                   cta: "Join waitlist",
                   href: "#waitlist",
                   primary: true,
                 },
                 {
                   name: "Monitor",
-                  price: "$29/mo",
+                  price: "$49/mo",
                   desc: "For apps that keep changing.",
-                  items: ["Weekly scans", "New and reopened alerts", "Trust page and badge", "Verify fixes"],
+                  items: ["Scheduled deep rescans", "New and reopened alerts", "Fix verification", "History & diff (V2)"],
                   cta: "Join waitlist",
                   href: "#waitlist",
                   primary: false,
@@ -279,8 +279,9 @@ export default function Home() {
               ))}
             </div>
             <p className="mt-6 max-w-[44rem] text-xs leading-6 text-[var(--muted)]">
-              Full Report and Monitor are planned. Prices are indicative and will be confirmed at launch. Fast Scan,
-              including the shareable report and PDF, is free today.
+              Deep Scan and Monitor are planned paid tiers. Fast Scan is free today, including report and PDF. Deep Scan
+              will be worth paying for only when it includes authenticated/runtime checks you cannot get from a public page;
+              until then it is gated and not sold as a guarantee.
             </p>
           </div>
         </section>
