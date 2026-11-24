@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { CHECKS, buildManualChecks, type CheckContext, type ScriptAsset } from "./checks";
+import { remoteScanOrNull, RemoteInputError } from "./scanner-client";
 import { site } from "./site";
 
 export type ScanSeverity = "critical" | "high" | "medium" | "low";
@@ -656,6 +657,31 @@ export async function executeScan(
 }
 
 export async function runFastScan(input: string, options: ScanOptions = {}): Promise<ScanResult> {
+  const remote = await scanWithRemote(input, "fast", options);
+  if (remote) return remote;
+
   const { result } = await executeScan(input, { ...options, mode: "fast" });
   return result;
 }
+
+/**
+ * Uses the Go scanner when configured, unless the caller injected a fetch
+ * implementation (unit tests and fixtures rely on the local engine).
+ */
+async function scanWithRemote(
+  input: string,
+  mode: ScanMode,
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<ScanResult | null> {
+  try {
+    return await remoteScanOrNull(input, mode, {
+      fetchImpl: options.fetchImpl,
+      allowRemote: !options.fetchImpl,
+    });
+  } catch (error) {
+    if (error instanceof RemoteInputError) throw new ScanInputError(error.message);
+    throw error;
+  }
+}
+
+export { scanWithRemote };

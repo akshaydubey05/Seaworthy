@@ -30,6 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# go scanner build output
+/services/scanner/scanner
+/services/scanner/scanner.exe
+
 # env files (can opt-in for committing if needed)
 .env*
 

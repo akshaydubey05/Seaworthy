@@ -39,6 +39,8 @@ Without Upstash, rate limits are per-instance in memory, which is weak on server
 | `UPSTASH_REDIS_REST_URL` | recommended | distributed rate limits |
 | `UPSTASH_REDIS_REST_TOKEN` | recommended | distributed rate limits |
 | `ERROR_WEBHOOK_URL` | optional | Slack/Discord/generic JSON error alerts |
+| `SCANNER_URL` | recommended | Go scanner base URL, e.g. `https://scanner.your-domain.com` |
+| `SCANNER_TOKEN` | recommended | shared secret; must match the scanner's `SCANNER_TOKEN` |
 
 4. Deploy.
 
@@ -70,3 +72,33 @@ Without Upstash, rate limits are per-instance in memory, which is weak on server
 ## 7. Persistence note
 
 The local `.data/` store remains as a development fallback only. In production, set `DATABASE_URL`; otherwise scans are not durable on serverless. The app logs `file_storage_in_use` if it detects production without a database.
+
+## 8. Go scanner service (recommended)
+
+Vercel cannot host the Go binary, so the scanner runs on a container host.
+
+1. Pick a host: Fly.io, Render, Railway, or Google Cloud Run.
+2. Deploy `services/scanner` using its Dockerfile. Full steps and a Fly example
+   are in `services/scanner/README.md`.
+3. Generate a token: `openssl rand -hex 32` (or any long random string).
+4. Set `SCANNER_TOKEN` on the scanner host and the same value in Vercel.
+5. Set `SCANNER_URL` in Vercel to the scanner's public URL (no trailing slash).
+6. Redeploy the web app and confirm logs show `scan_remote_ok` when scanning.
+
+Safety properties:
+
+- If the scanner is down or returns a malformed payload, the app logs
+  `scan_remote_fallback` and uses the built-in TypeScript engine. Users still get
+  a report.
+- If the target itself is invalid (private IP, bad URL), the scanner returns 400
+  and the app does not retry locally.
+- The scanner is stateless: no database, no disk, no access to user data. Keep it
+  private if your host supports private networking.
+
+Verification checklist:
+
+- [ ] `GET <SCANNER_URL>/health` returns `{"ok":true,...}`.
+- [ ] `POST <SCANNER_URL>/v1/scan` without a token returns `401`.
+- [ ] A scan through the website logs `scan_remote_ok` and shows `checksTotal` of 34 (fast) or 42 (deep).
+- [ ] Stop the scanner and re-run a scan: the site still returns a report (fallback).
+- [ ] Start the scanner again: scans go back to the Go service.

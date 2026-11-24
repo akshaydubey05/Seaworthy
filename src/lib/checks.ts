@@ -595,6 +595,40 @@ export const CHECKS: CheckDef[] = [
       );
     },
   },
+  {
+    id: "SW-035",
+    name: "External script without SRI",
+    category: "Supply chain",
+    severity: "low",
+    type: "hardening",
+    source: "body",
+    run: (c) => {
+      let missing = 0;
+      for (const match of c.html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["'](https?:\/\/[^"']+)["'][^>]*>/gi)) {
+        const tag = match[0];
+        const raw = match[1];
+        if (/\bintegrity\s*=/i.test(tag)) continue;
+        let parsed: URL;
+        try {
+          parsed = new URL(raw, c.url);
+        } catch {
+          continue;
+        }
+        if (parsed.host === c.url.host) continue;
+        missing += 1;
+      }
+      if (!missing) return null;
+      return f(
+        "SW-035",
+        "External script without Subresource Integrity",
+        "low",
+        "hardening",
+        "needs_validation",
+        `${missing} cross-origin script${missing === 1 ? "" : "s"} have no integrity attribute.`,
+        "Add integrity + crossorigin to static third-party scripts where the provider supports it.",
+      );
+    },
+  },
 ];
 
 export function buildManualChecks(ctx: CheckContext): ManualCheck[] {

@@ -149,3 +149,37 @@ What you should do:
 5. **Security reports**: keep `security@...` monitored. Respond politely and promptly.
 
 See `docs/LEGAL-CHECKLIST.md`.
+
+## 7. Optional: run the Go scanner
+
+The website works without this step. The Go scanner is faster and is the engine
+that receives new checks first.
+
+Local:
+
+```bash
+cd services/scanner
+SCANNER_TOKEN=local-test-token go run ./cmd/scanner
+```
+
+In another terminal, add to `.env.local`:
+
+```bash
+SCANNER_URL=http://localhost:8080
+SCANNER_TOKEN=local-test-token
+```
+
+Restart `npm run dev`. A scan now logs `scan_remote_ok`. If you stop the Go
+process, the next scan logs `scan_remote_fallback` and still works.
+
+Test the service itself:
+
+```bash
+cd services/scanner
+go vet ./...
+go test ./...
+```
+
+Production: deploy the Dockerfile to Fly.io/Render/Railway/Cloud Run, set the same
+`SCANNER_TOKEN` on both sides, and set `SCANNER_URL` in Vercel. Full steps:
+`DEPLOYMENT.md` section 8 and `services/scanner/README.md`.

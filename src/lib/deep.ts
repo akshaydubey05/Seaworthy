@@ -1,12 +1,16 @@
 import { buildManualChecks } from "./checks";
 import { DEEP_CHECKS } from "./deep-checks";
-import { executeScan, finalizeScan, type CheckRun, type ScanResult } from "./scan";
+import { executeScan, finalizeScan, scanWithRemote, type CheckRun, type ScanResult } from "./scan";
 
-export async function runDeepScan(input: string): Promise<ScanResult> {
+export async function runDeepScan(input: string, options: { fetchImpl?: typeof fetch } = {}): Promise<ScanResult> {
+  const remote = await scanWithRemote(input, "deep", options);
+  if (remote) return remote;
+
   const { result, ctx } = await executeScan(input, {
     mode: "deep",
     scriptLimit: 8,
     perAssetBytes: 300_000,
+    fetchImpl: options.fetchImpl,
   });
 
   const findings = [...result.findings];

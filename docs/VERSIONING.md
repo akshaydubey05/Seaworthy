@@ -49,6 +49,6 @@ Seaworthy uses **Semantic Versioning** with Git tags and GitHub Releases.
 
 | Version | Meaning |
 |---|---|
-| v1.1.0 | Current shipped hardening + deep-scan foundations |
-| v1.2.0 | Small feature/fix releases |
+| v1.1.0 | Launch hardening + deep-scan foundations |
+| v1.2.0 | Current: Go scanner service, contract validation, fallback, CI parity |
 | v2.0.0 | Accounts, DB-backed history, billing/entitlements, dashboard |

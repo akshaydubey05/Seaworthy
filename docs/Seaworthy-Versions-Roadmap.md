@@ -8,9 +8,10 @@
 
 | Version | Name | Goal | Status |
 |---|---|---|---|
-| **V1** | Fast Scan Foundation | Public, deterministic pre-launch scan with credible evidence/report | **In progress / shipping now** |
-| **V1.1** | Launch Hardening | Production-ready release, QA, deploy, persistence, legal/ops basics | Next |
-| **V2.0** | Productize & Persist | Accounts, DB, scan history, entitlements, observability | Planned |
+| **V1** | Fast Scan Foundation | Public, deterministic pre-launch scan with credible evidence/report | **Shipped** |
+| **V1.1** | Launch Hardening | Production-ready release, QA, deploy, persistence, legal/ops basics | **Shipped** |
+| **V1.2** | Scanner Service | Go scan engine, contract validation, automatic fallback, CI parity | **Shipped** |
+| **V2.0** | Productize & Persist | Accounts, DB, scan history, entitlements, observability | **Next** |
 | **V2.1** | Paid Full Report | $19 one-time report, billing, share/PDF/diff, fix workflows | Planned |
 | **V2.2** | Deep Audit Engine | Sandboxed agentic/authenticated/repo/runtime audits | Planned |
 | **V2.3** | Monitor | Continuous assurance, alerts, verify-fix, trust freshness | Planned |
@@ -19,16 +20,23 @@
 | **V3.1** | Trust Platform | Public trust pages, badges, procurement-ready evidence packs | Planned |
 | **V4.0** | Enterprise / Platform | SSO, API, CI/CD gates, policy, advanced compliance mappings | Future |
 
+### Architecture from V1.2
+
+- **Web app** (Next.js on Vercel): UI, reports, PDF, persistence, rate limits, auth/billing in V2.
+- **Scanner** (Go on a container host): fetching, checks, scoring, deep checks, SSRF guards.
+- **Contract**: `POST /v1/scan` validated on both sides; a malformed payload is treated as unavailable.
+- **Fallback**: the TypeScript engine in `src/lib/scan.ts` keeps working if the scanner is down.
+
 ---
 
-## V1 — Fast Scan Foundation (current)
+## V1 — Fast Scan Foundation (shipped)
 
 **Objective**: Ship a credible, premium, fast pre-launch security check for AI-built apps.
 
 ### Included
 - **Landing experience**: premium liquid-glass UI, responsive layout, accessible motion/reduced-motion fallbacks, clear CTA.
 - **Fast Scan**: public URL only, ~60s target, deterministic checks, no fake delay.
-- **30 high-impact checks**: exposed secrets/tokens, source maps/debug artifacts, security headers, browser protections, risky public config signals, Supabase/Firebase/Stripe/auth exposure signals, basic transport/deployment/public-fetch issues.
+- **34 fast checks + 8 deep checks**: exposed secrets/tokens (HTML and JS bundles), source maps/debug artifacts, security headers, browser protections, SRI, risky public config signals, Supabase/Firebase/Stripe/auth exposure signals, basic transport/deployment/public-fetch issues.
 - **Evidence model**: score 0-100, coverage %, verdicts (`confirmed`, `needs_validation`, `rejected` where applicable), check ledger, audit receipt.
 - **Report**: shareable report page `/report/[id]`, PDF export `/api/report/[id]/pdf`.
 - **Waitlist**: in-app capture for Full Report and Monitor.
@@ -68,6 +76,21 @@
 - **Analytics**: privacy-conscious funnel events (scan started/completed, report viewed, waitlist, CTA clicks).
 
 **Exit criteria**: Public users can run scans reliably; data persists; abuse/rate limits exist; legal/support basics are live.
+
+---
+
+## V1.2 — Scanner Service (shipped)
+
+**Objective**: Move scanning into Go without risking the product or delaying V2.
+
+- **Go service** (`services/scanner`): fetch, 34 fast checks, 8 deep checks, scoring, SSRF/DNS/redirect guards, concurrency limit, token auth.
+- **Contract**: `POST /v1/scan`; the web app validates the payload before rendering, storing, or generating a PDF.
+- **Fallback**: the TypeScript engine remains complete; scanner failures log `scan_remote_fallback` and degrade gracefully.
+- **Parity**: a test fails if Go and TypeScript rule IDs/order drift; live scans of Google/Cloudflare produced identical findings and scores on both engines.
+- **CI**: separate Go job (`gofmt`, `go vet`, `go test -race`, build) alongside the web job.
+- **Deploy**: distroless Docker image for Fly.io/Render/Railway/Cloud Run.
+
+**Exit criteria**: The site runs on either engine with the same report; a scanner outage is invisible to users.
 
 ---
 
@@ -195,7 +218,8 @@
 
 ## Immediate next build order
 
-1. **Ship V1**: QA, deploy, DB persistence, legal/ops, monitoring.
-2. **Start V2.0**: schema + auth + scan history.
-3. **Then V2.1**: Stripe + Full Report.
+1. **Finish V1 shipping**: production deploy, domain, live Postgres verification, attorney review.
+2. **Start V2.0**: schema migrations + auth + scan history.
+3. **Then V2.1**: Stripe + Full Report, with entitlements replacing the deep-scan key gate.
 4. **Then V2.2/V2.3**: sandboxed deep audit and monitor, based on user demand and safety readiness.
+5. **Paid-value gap to close after accounts exist**: authenticated crawling, multi-page/API checks, dependency/CVE checks, runtime drift, fix verification. Current deep scan is a foundation, not a standalone $29 product.

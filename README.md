@@ -35,6 +35,10 @@ Seaworthy runs fast, public, deterministic checks against a URL and returns evid
 - Zod
 - PostgreSQL (`pg`)
 - PDFKit
+- Go 1.24 scan service (`services/scanner`)
+
+The Go service is the preferred scan engine. The TypeScript engine stays in the
+app as a fallback so a scanner outage does not take the site down.
 
 ## Local development
 
@@ -45,6 +49,16 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+To use the Go scanner locally:
+
+```bash
+cd services/scanner
+SCANNER_TOKEN=local-test-token go run ./cmd/scanner
+```
+
+Then set `SCANNER_URL=http://localhost:8080` and the same `SCANNER_TOKEN` in
+`.env.local`. Without those, the app uses its built-in TypeScript engine.
 
 Without `DATABASE_URL`, scans and waitlist entries are stored in `.data/` (gitignored). This is a development convenience only.
 
@@ -60,6 +74,7 @@ See `.env.example`. The important ones:
 | `DATABASE_URL` | Postgres connection string (include `sslmode=require`) |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | distributed rate limiting |
 | `ERROR_WEBHOOK_URL` | Slack/Discord/generic JSON error alerts |
+| `SCANNER_URL` / `SCANNER_TOKEN` | use the Go scanner service when both are set |
 
 ## Scripts
 
@@ -83,7 +98,9 @@ npm test
 - `src/components/` - UI components
 - `src/lib/checks.ts` - deterministic fast-scan checks
 - `src/lib/deep-checks.ts` / `src/lib/deep.ts` - gated deep-scan checks (paid tier foundation)
-- `src/lib/scan.ts` - scan orchestration, scoring, coverage, SSRF/DNS guard, JS bundle fetching
+- `src/lib/scan.ts` - scan orchestration, scoring, coverage, SSRF/DNS guard, JS bundle fetching (fallback engine)
+- `src/lib/scanner-client.ts` - Go scanner client, payload validation, fallback policy
+- `services/scanner/` - Go scan service (preferred engine, tests, Dockerfile)
 - `src/lib/store.ts` - storage abstraction (Postgres or local file)
 - `src/lib/db.ts` - Postgres queries and pool
 - `src/lib/rate-limit.ts` - Upstash or in-memory rate limiting
@@ -99,6 +116,8 @@ npm test
 - `GET /api/report/[id]` - JSON report
 - `GET /api/report/[id]/pdf` - PDF report
 - `GET /api/health` - health/storage/config status
+
+Internal scanner API (`services/scanner`): `GET /health`, `POST /v1/scan` (token required). See `services/scanner/README.md`.
 
 ## V1 release checklist
 
