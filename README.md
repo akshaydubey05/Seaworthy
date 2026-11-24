@@ -1,5 +1,7 @@
 # Seaworthy
 
+[![CI](https://github.com/akshaydubey05/Seaworthy/actions/workflows/ci.yml/badge.svg)](https://github.com/akshaydubey05/Seaworthy/actions/workflows/ci.yml)
+
 Pre-launch security checks for AI-built apps.
 
 Seaworthy runs fast, public, deterministic checks against a URL and returns evidence-backed findings, a 0-100 score, coverage, and a shareable report. It is designed for vibe-coded and AI-assisted apps that need a clear launch-readiness signal before charging money.
