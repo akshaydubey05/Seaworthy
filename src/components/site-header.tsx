@@ -14,7 +14,7 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[rgba(236,241,236,0.08)] bg-[#0f1411]/55 backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-[#0f1411]/45">
+    <header className="site-header sticky top-0 z-50 border-b border-[rgba(236,241,236,0.08)] bg-[#0f1411]/55 backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-[#0f1411]/45">
       <div className="container flex h-[72px] items-center justify-between gap-4">
         <a href="#top" className="flex items-center gap-3" onClick={() => setOpen(false)} aria-label="Seaworthy home">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-[linear-gradient(180deg,#b7cab7,var(--accent))] text-[#141814] shadow-[0_8px_24px_rgba(149,176,149,0.22),inset_0_1px_0_rgba(255,255,255,0.45)]">

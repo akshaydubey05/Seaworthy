@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, FileCheck2, LockKeyhole, Radar, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, FileCheck2, LockKeyhole, Radar as RadarIcon, ShieldCheck } from "lucide-react";
+import { AmbientFx } from "@/components/ambient-fx";
 import { SeaworthyMark } from "@/components/brand";
+import { Radar } from "@/components/radar";
 import { RevealInit } from "@/components/reveal";
 import { ScanPanel } from "@/components/scan-panel";
 import { SiteHeader } from "@/components/site-header";
@@ -8,13 +10,13 @@ import { WaitlistForm } from "@/components/waitlist-form";
 
 const stats = [
   { value: "60s", label: "Fast public scan", detail: "A quick pass for obvious launch blockers." },
-  { value: "30", label: "High-impact checks", detail: "Focused on the mistakes AI-built apps ship most." },
+  { value: "34", label: "High-impact checks", detail: "Focused on the mistakes AI-built apps ship most." },
   { value: "0-100", label: "Exposure score", detail: "Weighted toward confirmed exposures. Hardening gaps count little." },
 ];
 
 const steps = [
   {
-    icon: Radar,
+    icon: RadarIcon,
     title: "Scan the live app",
     body: "Paste a URL. Seaworthy runs fast, public checks for exposed secrets, risky configs, and missing protections.",
   },
@@ -43,10 +45,11 @@ export default function Home() {
   return (
     <div className="relative overflow-x-clip">
       <RevealInit />
+      <AmbientFx />
       <div className="bg-grid" aria-hidden="true" />
-      <div className="bg-glow top-[-220px] left-[52%] h-[560px] w-[560px] bg-[rgba(149,176,149,0.14)]" aria-hidden="true" />
-      <div className="bg-glow top-[680px] left-[-140px] h-[380px] w-[380px] bg-[rgba(149,176,149,0.07)]" aria-hidden="true" />
-      <div className="bg-glow top-[1600px] right-[-120px] h-[340px] w-[340px] bg-[rgba(255,255,255,0.04)]" aria-hidden="true" />
+      <div className="bg-glow drift top-[-220px] left-[52%] h-[560px] w-[560px] bg-[rgba(149,176,149,0.14)]" aria-hidden="true" />
+      <div className="bg-glow drift top-[680px] left-[-140px] h-[380px] w-[380px] bg-[rgba(149,176,149,0.07)]" style={{ ["--drift-delay" as string]: "-9s" }} aria-hidden="true" />
+      <div className="bg-glow drift top-[1600px] right-[-120px] h-[340px] w-[340px] bg-[rgba(255,255,255,0.04)]" style={{ ["--drift-delay" as string]: "-16s" }} aria-hidden="true" />
 
       <SiteHeader />
 
@@ -80,6 +83,9 @@ export default function Home() {
 
             <div className="lg:col-span-6" data-reveal style={{ ["--reveal-delay" as string]: "120ms" }}>
               <div className="relative">
+                <div className="pointer-events-none absolute -right-16 -top-20 hidden lg:block" aria-hidden="true">
+                  <Radar />
+                </div>
                 <div className="absolute -inset-8 -z-10 rounded-[36px] bg-[radial-gradient(closest-side,rgba(149,176,149,0.18),transparent)] blur-2xl" aria-hidden="true" />
                 <div className="hero-sheen" aria-hidden="true" />
                 <ScanPanel />
@@ -108,7 +114,7 @@ export default function Home() {
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {steps.map((step, i) => (
-                <article key={step.title} className="card interactive-card p-6 sm:p-7" data-reveal style={{ ["--reveal-delay" as string]: `${i * 90}ms` }}>
+                <article key={step.title} className="card interactive-card p-6 sm:p-7" data-spotlight data-reveal style={{ ["--reveal-delay" as string]: `${i * 90}ms` }}>
                   <div className="mb-6 grid h-11 w-11 place-items-center rounded-xl border border-[rgba(236,241,236,0.12)] bg-white/[0.04] text-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                     <step.icon size={19} />
                   </div>
@@ -170,7 +176,7 @@ export default function Home() {
             </div>
 
             <div className="lg:col-span-7" data-reveal style={{ ["--reveal-delay" as string]: "100ms" }}>
-              <div className="card p-6 sm:p-8">
+              <div className="card p-6 sm:p-8" data-spotlight>
                 <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="eyebrow mb-2">Audit receipt</div>
@@ -262,7 +268,7 @@ export default function Home() {
                   primary: false,
                 },
               ].map((plan, i) => (
-                <article key={plan.name} data-reveal style={{ ["--reveal-delay" as string]: `${i * 90}ms` }} className={`card interactive-card p-6 sm:p-7 ${plan.primary ? "border-[rgba(149,176,149,0.34)] bg-[linear-gradient(180deg,rgba(149,176,149,0.13),rgba(255,255,255,0.02))] shadow-[0_30px_100px_rgba(149,176,149,0.08),0_24px_80px_rgba(0,0,0,0.28)]" : ""}`}>
+                <article key={plan.name} data-spotlight data-reveal style={{ ["--reveal-delay" as string]: `${i * 90}ms` }} className={`card interactive-card p-6 sm:p-7 ${plan.primary ? "border-[rgba(149,176,149,0.34)] bg-[linear-gradient(180deg,rgba(149,176,149,0.13),rgba(255,255,255,0.02))] shadow-[0_30px_100px_rgba(149,176,149,0.08),0_24px_80px_rgba(0,0,0,0.28)]" : ""}`}>
                   {plan.primary && <div className="mb-4 inline-flex rounded-full border border-[rgba(149,176,149,0.25)] bg-[rgba(149,176,149,0.1)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--accent-strong)]">Most useful</div>}
                   <div className="mb-2 text-sm text-[var(--muted)]">{plan.name}</div>
                   <div className="mb-3 text-[2.6rem] font-medium leading-none tracking-[-0.04em]">{plan.price}</div>
@@ -288,7 +294,7 @@ export default function Home() {
 
         <section id="waitlist" className="section section-border">
           <div className="container grid gap-6 lg:grid-cols-12 lg:gap-8">
-            <div className="card p-8 sm:p-10 lg:col-span-7" data-reveal>
+            <div className="card p-8 sm:p-10 lg:col-span-7" data-spotlight data-reveal>
               <p className="eyebrow mb-4">Waitlist</p>
               <h2 className="h2 mb-5 text-[clamp(2rem,4.4vw,3.2rem)]">Get the full report and monitor when they launch.</h2>
               <p className="mb-7 max-w-[36rem] text-[15px] leading-7 text-[var(--muted)]">

@@ -119,17 +119,32 @@ If any step fails, the push/PR is marked red. Fix before merging.
 
 ## 5. Versioned releases (V1.1, V2.0 style)
 
-We use Git tags like `v1.1.0`, `v2.0.0`.
+We use Git tags like `v1.1.0`, `v2.0.0` and semantic versioning: `MAJOR.MINOR.PATCH`.
 
-### Create a release
+- `patch` (1.2.0 → 1.2.1): fixes, copy, docs.
+- `minor` (1.2.0 → 1.3.0): new features, still backwards compatible.
+- `major` (1.2.0 → 2.0.0): breaking changes or a new product era.
+
+### Easiest: the GitHub button
+
+1. Open **Actions** → **Bump version** → **Run workflow**.
+2. Pick `patch`, `minor`, or `major`.
+3. It runs lint/typecheck/tests/build, updates all version numbers, commits,
+   tags, pushes, and creates the GitHub Release for you.
+
+Use the **dry run** checkbox to preview the next version without changing anything.
+Full details in `docs/VERSIONING.md`.
+
+### Manual alternative
 
 ```bash
 npm run lint && npm run typecheck && npm test && npm run build
+node scripts/release.mjs minor     # or patch / major
 git add -A
-git commit -m "Release v1.1.0"
-git tag v1.1.0
+git commit -m "chore(release): v1.3.0"
+git tag v1.3.0
 git push origin main
-git push origin v1.1.0
+git push origin v1.3.0
 ```
 
 Pushing the `v*` tag triggers `.github/workflows/release.yml`, which creates a GitHub Release automatically.

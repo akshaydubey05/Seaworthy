@@ -7,6 +7,9 @@ The format is based on Keep a Changelog, and versions follow SemVer tags (`vMAJO
 ## [Unreleased]
 
 ### Added
+- Ambient UI layer: drifting background glows, hero radar sweep, scroll progress, pointer spotlight on cards, entry choreography for scan results, animated score ring, live scan progress with elapsed time, finding filter tabs, and copy-to-clipboard receipt ID.
+- One-click release automation: `.github/workflows/bump-version.yml` asks for `patch` / `minor` / `major`, runs the full test suite, bumps all version numbers, commits, tags, pushes, and publishes a GitHub Release.
+- `scripts/release.mjs` for the same bump locally, with `--dry-run`.
 - V2.0 planning: accounts, DB-backed history, entitlements/billing, dashboard (provider choice pending).
 
 ## [1.2.0] - 2026-11-24
